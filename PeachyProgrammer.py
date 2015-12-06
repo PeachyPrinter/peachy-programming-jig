@@ -2,6 +2,8 @@
 import subprocess
 import serial
 import usb
+import csv
+import datetime
 #from usbid.usbinfo import USBINFO
 
 
@@ -13,6 +15,7 @@ class PeachyProgrammer():
     BOOTLOADER_PRODUCTID=57105
 
     def __init__(self):
+        self.version=1.0
         print "Starting Peachy Programmer"
         self.usbs={
                 'programmer_usb':False,
@@ -20,18 +23,28 @@ class PeachyProgrammer():
                 'arduino_usb':False,
                 'peachy_usb':False}
         self.programmingState={
-                'programmed':False}
+                'drips':False,
+                'coil':False,
+                'laser':False,
+                'rebooted':False,
+                'programmed':False,
+                'error':'Success'}
+        self.fid=open('PeachyProgramLog.csv','a')
+        self.csv=csv.writer(self.fid)
 
     def openocdProgram(self):
         self.checkForUsbIds()
         if self.usbs['programmer_usb']==False:
-            print "No programmer found"
-            return
+            print "No programmer detected, check jig setup"
+            self.programmingState['programmed']=False
+            self.programmingState['error']='No Programmer Detected'
+            return -1
         openocd_program='openocd -f stlink.cfg -c "program main.elf verify reset exit"'
         program_return = subprocess.call(openocd_program, shell=True)
         if program_return:
-            print "Programming Failed"
+            print "Programming failed, check jig setup (power to Peachy board?)"
             self.programmingState['programmed']=False
+            self.programmingState['error']='Programming Failed'
             return -1
         self.programmingState['programmed']=True
         return 0
@@ -52,22 +65,30 @@ class PeachyProgrammer():
                     self.usbs['programmer_usb']=True
         return
 
+    def arduinoConnect(self):
+        if self.usbs['arduino_usb']==False:
+            pass
+        return 0
 
-    def start(self):
+    def logLine(self):
+        date=datetime.datetime.now() 
+        programmed=self.programmingState['programmed']
+        laser=self.programmingState['laser']
+        coil=self.programmingState['coil']
+        drips=self.programmingState['drips']
+        error=self.programmingState['error']
+        line=[date,self.version,programmed,laser,coil,drips,error]
+        self.csv.writerow(line)
+
+
+    def fullTest(self):
         self.arduinoConnect()
         self.openocdProgram()
+        self.logLine()
 
-class ProgramLogger(self):
-    def __init__(self):
-        pass
-
-
-    def arduinoConnect(self):
-        print "Connecting to Arduino Monitor"
-        self.usbs['arduino_usb']=False
-        return 0
 
 
 if __name__=="__main__":
     Prog=PeachyProgrammer()
     Prog.openocdProgram()
+    Prog.logLine()
